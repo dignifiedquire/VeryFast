@@ -5,10 +5,10 @@
 //! It will not deallocate any memory, for cases when it's likely an element that has seen a lot of
 //! usage has a higher chance to continue having high usage.
 
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, AtomicPtr, Ordering};
 use std::mem::uninitialized;
-use std::ptr::{read, write, null_mut};
+use std::ptr::{null_mut, read, write};
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use std::sync::Mutex;
 
 /// A small inline-allocated buffer with expansion capabilities. Pushing values can be done done asynchronously.
 /// Reading values needs exclusive access. Removing values is only possible by draining the whole buffer.
