@@ -13,6 +13,7 @@ path = "src/lib.rs"
 
 [dependencies]
 crossbeam = "^0.3.2"
+stable_deref_trait = "1.1.1"
 
 [dev-dependencies]
 scoped_threadpool = "^0.1.8"

@@ -1,5 +1,3 @@
-#![feature(allocator_api)]
-#![feature(arc_counts)]
 #![deny(missing_docs)]
 #![allow(unknown_lints)]
 
@@ -14,7 +12,6 @@
 //! Nightly is required because of the next features:
 //!
 //! - `#![feature(allocator_api)]`: Custom allocation strategy for `Pool`
-
 
 extern crate crossbeam;
 

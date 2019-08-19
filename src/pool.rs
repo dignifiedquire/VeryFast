@@ -70,7 +70,7 @@
 //! }
 //! ```
 
-use std::heap::{Heap, Layout, Alloc};
+use std::alloc::{alloc, dealloc, Layout};
 use std::fmt;
 use std::mem;
 use std::ops::{Deref, DerefMut};
@@ -126,19 +126,32 @@ impl<T> Pool<T> {
     /// - `align_to_cache`: Should each object be on a separate CPU cache line. Speeds up
     /// multithreaded usage, but hurts single-threaded cache locality a bit and requires a bit more memory.
     /// Has no effect if `size_of::<T>` is already a multiple of a cache line size.
-    /// 
+    ///
     /// - `cache_line_size`: The size of an L1 cache line on the architecture. Must be a power of 2.
-    /// 
+    ///
     /// - `number_of_sets`: The number of [associativity](https://en.wikipedia.org/wiki/CPU_cache#Associativity) sets
     /// of the target processor. Decides the size of batch allocations.
     #[inline]
-    pub fn with_system_params(align_to_cache: bool, cache_line_size: usize, number_of_sets: usize) -> Pool<T> {
-        assert!(cache_line_size != 0, "Pool requested with cache_line_size = 0");
-        assert!(number_of_sets != 0, "Pool requested with number_of_sets = 0");
-        assert!(mem::size_of::<T>() != 0,
-                "Pool requested with type of size 0");
+    pub fn with_system_params(
+        align_to_cache: bool,
+        cache_line_size: usize,
+        number_of_sets: usize,
+    ) -> Pool<T> {
+        assert!(
+            cache_line_size != 0,
+            "Pool requested with cache_line_size = 0"
+        );
+        assert!(
+            number_of_sets != 0,
+            "Pool requested with number_of_sets = 0"
+        );
+        assert!(
+            mem::size_of::<T>() != 0,
+            "Pool requested with type of size 0"
+        );
         let batch_alignment = cache_line_size.max(mem::align_of::<T>());
-        let align = ((mem::size_of::<T>() + mem::align_of::<T>() - 1) / mem::align_of::<T>()) * mem::align_of::<T>();
+        let align = ((mem::size_of::<T>() + mem::align_of::<T>() - 1) / mem::align_of::<T>())
+            * mem::align_of::<T>();
         let stride = if align_to_cache {
             ((cache_line_size + align - 1) / cache_line_size) * cache_line_size
         } else {
@@ -146,7 +159,8 @@ impl<T> Pool<T> {
         };
         let batch = (number_of_sets * cache_line_size / stride).max(1);
         let mem_size = batch * stride;
-        let layout = Layout::from_size_align(mem_size, batch_alignment).expect("Pool requested with bad system cache parameters");
+        let layout = Layout::from_size_align(mem_size, batch_alignment)
+            .expect("Pool requested with bad system cache parameters");
         Pool {
             data: Mutex::new(Vec::new()),
             free: MsQueue::new(),
@@ -185,7 +199,7 @@ impl<T> Pool<T> {
             if let Some(x) = self.free.try_pop() {
                 return x;
             }
-            let extra = Heap::default().alloc(self.layout.clone()).unwrap() as *mut T;
+            let extra = alloc(self.layout.clone()) as *mut T;
             // starting from 1 since index 0 will be returned
             for i in 1..self.batch {
                 self.free.push((extra as usize + i * self.stride) as *mut T);
@@ -216,7 +230,7 @@ impl<T> Drop for Pool<T> {
         };
         for block in lock.deref() {
             unsafe {
-                Heap::default().dealloc(*block as *mut u8, self.layout.clone());
+                dealloc(*block as *mut u8, self.layout.clone());
             }
         }
     }
@@ -227,9 +241,7 @@ impl<'active, T> Object<'active, T> {
     #[allow(needless_pass_by_value)]
     #[inline]
     pub fn recover(t: Self) -> T {
-        let ret = unsafe {
-            ptr::read(t.obj)
-        };
+        let ret = unsafe { ptr::read(t.obj) };
         t.manager.ret_ptr(t.obj);
         ret
     }
@@ -263,6 +275,8 @@ impl<'active, T> DerefMut for Object<'active, T> {
     }
 }
 
+unsafe impl<'active, T: Send> stable_deref_trait::StableDeref for Object<'active, T> {}
+
 unsafe impl<'active, T: Send> Send for Object<'active, T> {}
 
 unsafe impl<'active, T: Sync> Sync for Object<'active, T> {}
@@ -273,9 +287,7 @@ unsafe impl<T: Send> Sync for Pool<T> {}
 
 impl<T> fmt::Debug for Pool<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let pages = {
-            self.data.lock().unwrap().len()
-        };
+        let pages = { self.data.lock().unwrap().len() };
         write!(f,
                "Pool {{ {} blocks, {} elements with {} stride in each. {} bytes allocated total for {} possible elements }}",
                pages,
